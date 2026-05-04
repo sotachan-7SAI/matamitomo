@@ -269,8 +269,7 @@ function App() {
         // 残りメンバーで3ターン会話してから選択へ
         setLeavedChar(charId);
         setAfterTalkTurn(0);
-        setDisplay([{type:"system",text:"……"+char.name+"が出ていった。
-残った人たちが、静かにその場を見ていた。"}]);
+        setDisplay([{type:"system",text:"……"+char.name+"が出ていった。残った人たちが、静かにその場を見ていた。"}]);
         setPhase("afterTalk");
       }
     },3000);
