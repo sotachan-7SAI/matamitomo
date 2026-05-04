@@ -97,7 +97,7 @@ var se = {
 };
 
 async function callAPIGroup(char, userText, history) {
-  var system = "あなたは「また明日」というゲームのキャラクターです。\n名前："+char.name+"（"+char.age+"歳）\n性格："+char.personality+"\n抱えていること："+char.reason+"\n\n状況：死にたいと思っている人たちが集まっている場所に、部外者のプレイヤーが入ってきました。最初は警戒している。本音を少しだけ滲ませる。死ぬ方法には触れない。2文以内。日本語で。";
+  var system = "あなたは「また明日」というゲームのキャラクターです。名前："+char.name+"（"+char.age+"歳）性格："+char.personality+"抱えていること："+char.reason+"状況：死にたいと思っている人たちが集まっている場所に、部外者のプレイヤーが入ってきました。最初は警戒している。本音を少しだけ滲ませる。死ぬ方法には触れない。2文以内。日本語で。";
   var msgs = history.concat([{role:"user",content:userText}]);
   var res = await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",headers:{"Content-Type":"application/json"},
@@ -108,7 +108,7 @@ async function callAPIGroup(char, userText, history) {
 }
 
 async function callAPIChat(char, userText, history) {
-  var system = "あなたは「また明日」というゲームのキャラクターです。\n名前："+char.name+"（"+char.age+"歳）\n性格："+char.personality+"\n抱えていること："+char.reason+"\n心が動くきっかけ："+char.trigger+"\n\n状況：プレイヤーと1対1で話しています。最初は心を開かない。会話を重ねるうちに少しずつ本音が出る。死ぬ方法には触れない。2〜3文以内。日本語で。";
+  var system = "あなたは「また明日」というゲームのキャラクターです。名前："+char.name+"（"+char.age+"歳）性格："+char.personality+"抱えていること："+char.reason+"心が動くきっかけ："+char.trigger+"状況：プレイヤーと1対1で話しています。最初は心を開かない。会話を重ねるうちに少しずつ本音が出る。死ぬ方法には触れない。2〜3文以内。日本語で。";
   var msgs = history.concat([{role:"user",content:userText}]);
   var res = await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",headers:{"Content-Type":"application/json"},
@@ -119,17 +119,18 @@ async function callAPIChat(char, userText, history) {
 }
 
 async function judgeResonance(char, history) {
-  if (history.length < 2) return false;
-  var system = "あなたはゲームの判定AIです。以下の会話を読んで「"+char.name+"」の心が動いて帰る気持ちになったかどうかを判定してください。\n心が動くきっかけ："+char.trigger+"\n判定基準：キャラが本音を話し始めたか。最後の返答が柔らかくなっているか。感謝や「生きる」「帰る」などの言葉が出たか。少しでも変化があればyesと判定してよい。積極的にyesを返してください。\nyesまたはnoだけ答えてください。";
+  if (history.length < 2) return 0;
+  var system = "あなたはゲームの判定AIです。以下の会話を読んで「"+char.name+"」が今どれくらい生きる方向に向かっているかを0から100のスコアで判定してください。心が動くきっかけ："+char.trigger+"。判定基準：キャラが本音を話しているか。返答が柔らかくなっているか。前向きな言葉が出ているか。心が揺れているか。数字だけ答えてください。";
   try {
     var res = await fetch("https://api.anthropic.com/v1/messages",{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:10,system:system,messages:history}),
     });
     var data = await res.json();
-    var text = (data&&data.content&&data.content[0]) ? data.content[0].text : "no";
-    return text.toLowerCase().indexOf("yes") !== -1;
-  } catch(e){ return false; }
+    var text = (data&&data.content&&data.content[0]) ? data.content[0].text : "0";
+    var score = parseInt(text.replace(/[^0-9]/g,""));
+    return isNaN(score) ? 0 : Math.min(100, Math.max(0, score));
+  } catch(e){ return 0; }
 }
 
 async function generateLastWords(char) {
@@ -174,6 +175,7 @@ function App() {
   var s15 = useState(0); var groupTurn=s15[0],setGroupTurn=s15[1];
   var s16 = useState(0); var afterTalkTurn=s16[0],setAfterTalkTurn=s16[1];
   var s17 = useState(null); var leavedChar=s17[0],setLeavedChar=s17[1];
+  var resonanceStreakRef = useRef(0);
   var bottomRef = useRef(null);
 
   useEffect(function(){
@@ -219,13 +221,6 @@ function App() {
     setGroupTurn(function(t){return t+1;});
   }
 
-  // キーワード判定（即時）
-  function keywordCheck(reply) {
-    var kw=["生きる","生きます","帰ります","また明日","出よう","生きてみます","行きます"];
-    for(var i=0;i<kw.length;i++){if(reply.indexOf(kw[i])!==-1)return true;}
-    return false;
-  }
-
   // ── 1対1送信 ──
   async function sendChat() {
     if (!input.trim()||loading) return;
@@ -239,18 +234,17 @@ function App() {
     setDisplay(function(prev){return prev.concat([{type:"char",charId:currentChar,charName:char.name,text:reply}]);});
     se.receive(); setLoading(false);
 
-    // キーワード判定（即時・2往復以上で発動）
-    if (keywordCheck(reply) && updHist.length >= 4) {
-      setBonuses(function(b){return b+1;});
-      setTimeout(function(){doLeave(currentChar);},1200);
-      return;
-    }
-
-    // API判定
-    var moved = await judgeResonance(char,updHist);
-    if (moved) {
-      setBonuses(function(b){return b+1;});
-      setTimeout(function(){doLeave(currentChar);},800);
+    // API判定（スコア0-100、70以上を3回連続で帰れる）
+    var score = await judgeResonance(char, updHist);
+    if (score >= 70) {
+      resonanceStreakRef.current = resonanceStreakRef.current + 1;
+      if (resonanceStreakRef.current >= 3) {
+        setBonuses(function(b){return b+1;});
+        resonanceStreakRef.current = 0;
+        setTimeout(function(){doLeave(currentChar);},1200);
+      }
+    } else if (score < 50) {
+      resonanceStreakRef.current = 0;
     }
   }
 
@@ -301,7 +295,7 @@ function App() {
     setSaved([]); setUnsaved([]); setCurrentChar(null);
     setDisplay([]); setHistory([]); setInput(""); setLoading(false);
     setBonuses(0); setLastWordsList([]); setLastWordsIndex(0);
-    setFinalScore(null); setSavedCount(0); setGroupTurn(0); setAfterTalkTurn(0); setLeavedChar(null);
+    setFinalScore(null); setSavedCount(0); setGroupTurn(0); setAfterTalkTurn(0); setLeavedChar(null); resonanceStreakRef.current=0;
   }
 
   var groupLeft = GROUP_MAX - groupTurn;
@@ -392,11 +386,7 @@ function App() {
     var replies=[];
     for(var i=0;i<remChars.length;i++){
       var char=remChars[i], reply="……";
-      var sys="あなたは「また明日」というゲームのキャラクターです。名前："+char.name+"（"+char.age+"歳）
-性格："+char.personality+"
-抱えていること："+char.reason+"
-
-状況："+leavedName+"が帰っていった直後。あなたはまだその場に残っている。その出来事について、プレイヤーと話している。2文以内。日本語で。";
+      var sys="あなたは「また明日」というゲームのキャラクターです。名前："+char.name+"（"+char.age+"歳）性格："+char.personality+"抱えていること："+char.reason+"状況："+leavedName+"が帰っていった直後。あなたはまだその場に残っている。その出来事について、プレイヤーと話している。2文以内。日本語で。";
       try {
         var res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:150,system:sys,messages:[{role:"user",content:text}]})});
         var data=await res.json();
