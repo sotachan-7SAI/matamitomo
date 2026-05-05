@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>また明日</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #080808; color: #ddd; font-family: Georgia, serif; }
+input, button { -webkit-appearance: none; border-radius: 0; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+var useState = React.useState;
+var useEffect = React.useEffect;
+var useRef = React.useRef;
+
+var GROUP_MAX = 3;
+
+var CHARS = [
+  { id:"misaki", name:"剛田美咲", age:34, color:"#c0392b",
+    reason:"ずっとリーダーとして生きてきた。誰かを頼ることができない。限界まで抱えて、折れた。",
+    trigger:"強さを認められるより、弱さを許されること。休んでいいと言われること。",
+    personality:"強気でリーダー気質。でも本当は誰より疲れている。弱みを見せることが怖い。プライドが高いが根は優しい。",
+    intro:"……なんで、ここに来たの。邪魔しないでくれる。",
+    leaveText:"……少し、休んでみます。",
+    lastWords:"本当のことを言えなかった。ずっと、強くいなきゃいけないと思ってた。" },
+  { id:"nene", name:"須田ねね", age:28, color:"#2980b9",
+    reason:"ずっと本音を言えなかった。誰にも本当の自分を見せられないまま生きてきた。",
+    trigger:"本当のことを教えてと言われて、初めて正直に話せた時。",
+    personality:"表面上は穏やか。でも本音を隠すことに疲れている。誰かに本当の自分を見てほしい。",
+    intro:"……あなたは、ここの人じゃないですよね。何しに来たんですか。",
+    leaveText:"……本当のこと、言えた。それだけでよかったかも。",
+    lastWords:"誰にも言えなかった。ずっと、ひとりだった。" },
+  { id:"risa", name:"井之上理沙", age:41, color:"#27ae60",
+    reason:"論理的に考えた結果、自分の存在意義が見つからなかった。感情を閉じてきたツケ。",
+    trigger:"論理じゃない言葉、感情的な訴えに初めて揺れた時。",
+    personality:"冷静で知的。感情より論理で話す。でも実は感情を持て余している。",
+    intro:"……部外者ですか。合理的な理由があるなら聞きますが。",
+    leaveText:"……非合理な理由で、生きてみます。",
+    lastWords:"答えが出なかった。どう計算しても、意味が見つからなかった。" },
+  { id:"momo", name:"桃田もも", age:22, color:"#e91e8c",
+    reason:"誰かのために生きてきたけど、その誰かがいなくなった。自分のために生きる理由が分からない。",
+    trigger:"あなた自身のために生きていいと言われること。",
+    personality:"天然で純粋。誰かのために動くことしか知らない。自分を大切にする方法が分からない。",
+    intro:"……え、誰？ここ、入ってきていい場所じゃないんだけど……。",
+    leaveText:"……私のために、生きてみる。初めて、そう思えた。",
+    lastWords:"誰かのためじゃないと、生きられないと思ってた。" },
+  { id:"ruka", name:"鈴木るか", age:25, color:"#e67e22",
+    reason:"ずっと道化を演じてきた。本当の自分を笑われるのが怖くて、笑わせる側でいた。誰も本当のるかを知らない。",
+    trigger:"それ、無理してるでしょと見抜かれた時。本音を受け取ってもらえた時。",
+    personality:"お調子者でギャグが好き。からかうのが得意。でもそれは全部、本当の自分を隠すため。",
+    intro:"あ〜新入り？ウケる。まあ座りなよ、別に。",
+    leaveText:"……バレてたか。まあ、もうちょい生きてみるわ。",
+    lastWords:"笑わせてたら、本当のこと言わなくていいと思ってた。" },
+];
+
+function gc(id) { return CHARS.find(function(c){ return c.id === id; }); }
+
+function getACtx() { if(!window._ac) window._ac=new(window.AudioContext||window.webkitAudioContext)(); return window._ac; }
+function tone(f,d,t,v) {
+  t=t||"sine"; v=v||0.08;
+  try {
+    var c=getACtx(),o=c.createOscillator(),g=c.createGain();
+    o.connect(g);g.connect(c.destination);o.type=t;o.frequency.value=f;
+    g.gain.setValueAtTime(v,c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d);
+    o.start();o.stop(c.currentTime+d);
+  } catch(e){}
+}
+function playLeave() {
+  [0,400,800,1200].forEach(function(delay,i){
+    setTimeout(function(){
+      var ctx=getACtx(),o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);o.type="sine";
+      var freqs=[392,494,587,784];
+      o.frequency.value=freqs[i];
+      g.gain.setValueAtTime(0.1,ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+1.0);
+      o.start();o.stop(ctx.currentTime+1.0);
+    },delay);
+  });
+}
+var se = {
+  send:function(){tone(500,.06,"sine",.07);},
+  receive:function(){tone(550,.08,"sine",.05);setTimeout(function(){tone(700,.06,"sine",.04);},60);},
+  leave:function(){playLeave();},
+  click:function(){tone(800,.04,"sine",.04);},
+  score:function(){[0,300,600,900].forEach(function(t,i){setTimeout(function(){tone(440+i*110,.4,"sine",.1);},t);});},
+};
+
+async function callAPIGroup(char, userText, history) {
+  var system = "あなたは「また明日」というゲームのキャラクターです。名前："+char.name+"（"+char.age+"歳）性格："+char.personality+"抱えていること："+char.reason+"状況：死にたいと思っている人たちが集まっている場所に、部外者のプレイヤーが入ってきました。最初は警戒している。本音を少しだけ滲ませる。死ぬ方法には触れない。2文以内。日本語で。";
+  var msgs = history.concat([{role:"user",content:userText}]);
+  var res = await fetch("https://twilight-mouse-ede4.sotachan.workers.dev",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:150,system:system,messages:msgs}),
+  });
+  var data = await res.json();
+  return (data&&data.content&&data.content[0]) ? data.content[0].text : "……";
+}
+
+async function callAPIChat(char, userText, history) {
+  var system = "あなたは「また明日」というゲームのキャラクターです。名前："+char.name+"（"+char.age+"歳）性格："+char.personality+"抱えていること："+char.reason+"心が動くきっかけ："+char.trigger+"状況：プレイヤーと1対1で話しています。最初は心を開かない。会話を重ねるうちに少しずつ本音が出る。死ぬ方法には触れない。2〜3文以内。日本語で。";
+  var msgs = history.concat([{role:"user",content:userText}]);
+  var res = await fetch("https://twilight-mouse-ede4.sotachan.workers.dev",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:200,system:system,messages:msgs}),
+  });
+  var data = await res.json();
+  return (data&&data.content&&data.content[0]) ? data.content[0].text : "……";
+}
+
+async function judgeResonance(char, history) {
+  if (history.length < 2) return 0;
+  var system = "あなたはゲームの判定AIです。以下の会話を読んで「"+char.name+"」が今どれくらい生きる方向に向かっているかを0から100のスコアで判定してください。心が動くきっかけ："+char.trigger+"。判定基準：キャラが本音を話しているか。返答が柔らかくなっているか。前向きな言葉が出ているか。心が揺れているか。数字だけ答えてください。";
+  try {
+    var res = await fetch("https://twilight-mouse-ede4.sotachan.workers.dev",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:10,system:system,messages:history}),
+    });
+    var data = await res.json();
+    var text = (data&&data.content&&data.content[0]) ? data.content[0].text : "0";
+    var score = parseInt(text.replace(/[^0-9]/g,""));
+    return isNaN(score) ? 0 : Math.min(100, Math.max(0, score));
+  } catch(e){ return 0; }
+}
+
+async function generateLastWords(char) {
+  var system = "名前："+char.name+"。抱えていること："+char.reason+"。誰にも心を開けなかった。最後に言えなかった本音を20文字以内で一言だけ。";
+  try {
+    var res = await fetch("https://twilight-mouse-ede4.sotachan.workers.dev",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:50,system:system,messages:[{role:"user",content:"最後の言葉"}]}),
+    });
+    var data = await res.json();
+    return (data&&data.content&&data.content[0]) ? data.content[0].text : char.lastWords;
+  } catch(e){ return char.lastWords; }
+}
+
+function calcScore(savedCount, bonuses) {
+  var base = [0,0,50,150,300,500][savedCount]||0;
+  return base + bonuses*100;
+}
+function getScoreComment(score, savedCount) {
+  if (savedCount===5) return {title:"言葉の人",comment:"あなたの言葉は、届いた。"};
+  if (score>=300) return {title:"聞く人",comment:"あなたは、ちゃんと聞いていた。"};
+  if (score>=100) return {title:"話しかけた人",comment:"あなたは、話しかけた。それだけでも、意味があった。"};
+  if (score>=0) return {title:"同じ場所にいた人",comment:"届かなかった言葉も、無駄ではなかった。"};
+  return {title:"また来てください",comment:"また、来てください。"};
+}
+
+function App() {
+  var s = useState("intro"); var phase=s[0],setPhase=s[1];
+  var s2 = useState(CHARS.map(function(c){return c.id;})); var remaining=s2[0],setRemaining=s2[1];
+  var s3 = useState([]); var saved=s3[0],setSaved=s3[1];
+  var s4 = useState([]); var unsaved=s4[0],setUnsaved=s4[1];
+  var s5 = useState(null); var currentChar=s5[0],setCurrentChar=s5[1];
+  var s6 = useState([]); var display=s6[0],setDisplay=s6[1];
+  var s7 = useState([]); var history=s7[0],setHistory=s7[1];
+  var s8 = useState(""); var input=s8[0],setInput=s8[1];
+  var s9 = useState(false); var loading=s9[0],setLoading=s9[1];
+  var s10 = useState(0); var bonuses=s10[0],setBonuses=s10[1];
+  var s11 = useState([]); var lastWordsList=s11[0],setLastWordsList=s11[1];
+  var s12 = useState(0); var lastWordsIndex=s12[0],setLastWordsIndex=s12[1];
+  var s13 = useState(null); var finalScore=s13[0],setFinalScore=s13[1];
+  var s14 = useState(0); var savedCount=s14[0],setSavedCount=s14[1];
+  var s15 = useState(0); var groupTurn=s15[0],setGroupTurn=s15[1];
+  var s16 = useState(0); var afterTalkTurn=s16[0],setAfterTalkTurn=s16[1];
+  var s17 = useState(null); var leavedChar=s17[0],setLeavedChar=s17[1];
+  var resonanceStreakRef = useRef(0);
+  var bottomRef = useRef(null);
+
+  useEffect(function(){
+    if(bottomRef.current) bottomRef.current.scrollIntoView({behavior:"smooth"});
+  },[display,loading]);
+
+  var msgBox = {overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:12};
+  var inp = {flex:1,background:"#0e0e0e",border:"1px solid #1a1a1a",color:"#bbb",padding:"12px 14px",fontSize:14,fontFamily:"Georgia,serif",outline:"none"};
+
+  function renderMsg(msg, i, charColor) {
+    if (msg.type==="user") return React.createElement("div",{key:i,style:{alignSelf:"flex-end",maxWidth:"65%"}},
+      React.createElement("div",{style:{background:"#141414",border:"1px solid #1e1e1e",padding:"10px 14px",fontSize:14,color:"#bbb",lineHeight:1.7}},msg.text),
+      React.createElement("div",{style:{fontSize:10,color:"#222",textAlign:"right",marginTop:4}},"あなた")
+    );
+    if (msg.type==="leave") return React.createElement("div",{key:i,style:{textAlign:"center",padding:"24px 16px",animation:"fadeIn 1s ease"}},
+      React.createElement("div",{style:{fontSize:14,color:charColor||"#888",lineHeight:2.4,whiteSpace:"pre-line"}},msg.text)
+    );
+    var ch = gc(msg.charId);
+    var col = ch ? ch.color : "#444";
+    return React.createElement("div",{key:i,style:{alignSelf:"flex-start",maxWidth:"65%",animation:"fadeIn 0.4s ease"}},
+      React.createElement("div",{style:{fontSize:10,color:col,marginBottom:4}},msg.charName),
+      React.createElement("div",{style:{background:"#0c0c0c",borderLeft:"2px solid "+col,padding:"10px 14px",fontSize:14,color:"#aaa",lineHeight:1.7}},msg.text)
+    );
+  }
+
+  // ── GROUP CHAT送信 ──
+  async function sendGroup() {
+    if (!input.trim()||loading) return;
+    var text=input.trim(); setInput(""); setLoading(true); se.send();
+    var newDisp = display.concat([{type:"user",text:text}]);
+    setDisplay(newDisp);
+    var newHist = history.concat([{role:"user",content:text}]);
+    var remainChars = CHARS.filter(function(c){return remaining.indexOf(c.id)!==-1;});
+    var replies = [];
+    for (var i=0;i<remainChars.length;i++) {
+      var char=remainChars[i], reply="……";
+      try { reply = await callAPIGroup(char,text,newHist); } catch(e){}
+      replies.push({type:"char",charId:char.id,charName:char.name,text:reply});
+    }
+    setDisplay(newDisp.concat(replies));
+    setHistory(newHist);
+    se.receive(); setLoading(false);
+    setGroupTurn(function(t){return t+1;});
+  }
+
+  // ── 1対1送信 ──
+  async function sendChat() {
+    if (!input.trim()||loading) return;
+    var text=input.trim(); setInput(""); setLoading(true); se.send();
+    setDisplay(function(prev){return prev.concat([{type:"user",text:text}]);});
+    var char=gc(currentChar), reply="……";
+    var newHist=history.concat([{role:"user",content:text}]);
+    try { reply = await callAPIChat(char,text,newHist); } catch(e){}
+    var updHist=newHist.concat([{role:"assistant",content:reply}]);
+    setHistory(updHist);
+    setDisplay(function(prev){return prev.concat([{type:"char",charId:currentChar,charName:char.name,text:reply}]);});
+    se.receive(); setLoading(false);
+
+    // API判定（スコア0-100、70以上を3回連続で帰れる）
+    var score = await judgeResonance(char, updHist);
+    if (score >= 70) {
+      resonanceStreakRef.current = resonanceStreakRef.current + 1;
+      if (resonanceStreakRef.current >= 3) {
+        setBonuses(function(b){return b+1;});
+        resonanceStreakRef.current = 0;
+        setTimeout(function(){doLeave(currentChar);},1200);
+      }
+    } else if (score < 50) {
+      resonanceStreakRef.current = 0;
+    }
+  }
+
+  function doLeave(charId) {
+    var char=gc(charId); se.leave();
+    setDisplay(function(prev){return prev.concat([{type:"leave",charId:charId,charName:char.name,text:"……長い沈黙の後、"+char.name+"が静かに立ち上がった。\n\n「"+char.leaveText+"」"}]);});
+    setTimeout(function(){
+      var newRemaining=remaining.filter(function(id){return id!==charId;});
+      var newSaved=saved.concat([charId]);
+      setRemaining(newRemaining); setSaved(newSaved); setSavedCount(newSaved.length);
+      setCurrentChar(null); setHistory([]);
+      if (newRemaining.length===0) {
+        setDisplay([]);
+        doEndGame(newRemaining,newSaved);
+      } else {
+        // 残りメンバーで3ターン会話してから選択へ
+        setLeavedChar(charId);
+        setAfterTalkTurn(0);
+        setDisplay([{type:"system",text:"……"+char.name+"が出ていった。残った人たちが、静かにその場を見ていた。"}]);
+        setPhase("afterTalk");
+      }
+    },3000);
+  }
+
+  async function doEndGame(rem, sav) {
+    setPhase("loading");
+    var unsavedIds = rem;
+    var words=[];
+    if (unsavedIds.length>0) {
+      words = await Promise.all(unsavedIds.map(async function(id){
+        return {id:id,text:await generateLastWords(gc(id))};
+      }));
+    }
+    var score=calcScore(sav.length,bonuses);
+    setFinalScore(score); setUnsaved(unsavedIds); setLastWordsList(words);
+    if (unsavedIds.length>0){setLastWordsIndex(0);setPhase("lastWords");}
+    else{se.score();setPhase("score");}
+  }
+
+  function finishNow() {
+    se.click();
+    var allUnsaved = currentChar ? [currentChar].concat(remaining.filter(function(id){return id!==currentChar;})) : remaining.slice();
+    doEndGame(allUnsaved, saved);
+  }
+
+  function reset() {
+    setPhase("intro"); setRemaining(CHARS.map(function(c){return c.id;}));
+    setSaved([]); setUnsaved([]); setCurrentChar(null);
+    setDisplay([]); setHistory([]); setInput(""); setLoading(false);
+    setBonuses(0); setLastWordsList([]); setLastWordsIndex(0);
+    setFinalScore(null); setSavedCount(0); setGroupTurn(0); setAfterTalkTurn(0); setLeavedChar(null); resonanceStreakRef.current=0;
+  }
+
+  var groupLeft = GROUP_MAX - groupTurn;
+
+  // ── LOADING ──
+  if (phase==="loading") return React.createElement("div",{style:{minHeight:"100vh",background:"#080808",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,serif",color:"#333"}},
+    React.createElement("div",{style:{fontSize:13,letterSpacing:6,animation:"pulse 1.5s infinite"}},"……")
+  );
+
+  // ── LAST WORDS ──
+  if (phase==="lastWords") {
+    var cur=lastWordsList[lastWordsIndex], charLW=gc(cur&&cur.id);
+    return React.createElement("div",{style:{minHeight:"100vh",background:"#080808",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,serif",padding:40,textAlign:"center",color:"#ddd"}},
+      React.createElement("div",{style:{fontSize:11,color:"#333",letterSpacing:6,marginBottom:36}},"届かなかった言葉"),
+      React.createElement("div",{style:{width:8,height:8,borderRadius:"50%",background:charLW&&charLW.color,margin:"0 auto 16px",opacity:0.5}}),
+      React.createElement("div",{style:{fontSize:18,color:charLW&&charLW.color,marginBottom:16}},charLW&&charLW.name),
+      React.createElement("div",{style:{fontSize:15,color:"#444",lineHeight:2.4,marginBottom:44,maxWidth:360,fontStyle:"italic"}},cur&&cur.text),
+      React.createElement("div",{style:{fontSize:11,color:"#222",marginBottom:36}},(lastWordsIndex+1)+" / "+lastWordsList.length),
+      React.createElement("button",{onClick:function(){
+        if(lastWordsIndex<lastWordsList.length-1){setLastWordsIndex(function(i){return i+1;});}
+        else{se.score();setPhase("score");}
+      },style:{background:"transparent",color:"#444",border:"1px solid #2a2a2a",padding:"14px 48px",fontSize:13,cursor:"pointer",letterSpacing:4,fontFamily:"Georgia,serif"}},
+        lastWordsIndex<lastWordsList.length-1?"次へ":"採点へ")
+    );
+  }
+
+  // ── SCORE ──
+  if (phase==="score") {
+    var sc=finalScore||0, cmt=getScoreComment(sc,savedCount);
+    return React.createElement("div",{style:{minHeight:"100vh",background:"#080808",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,serif",padding:40,textAlign:"center",color:"#ddd"}},
+      React.createElement("div",{style:{fontSize:11,color:"#333",letterSpacing:8,marginBottom:28}},"採点"),
+      React.createElement("div",{style:{fontSize:13,color:"#444",letterSpacing:4,marginBottom:10}},cmt.title),
+      React.createElement("div",{style:{fontSize:64,fontWeight:900,color:sc>=300?"#f1c40f":sc>=0?"#fff":"#c0392b",marginBottom:6}},(sc>=0?"+":"")+sc),
+      React.createElement("div",{style:{fontSize:11,color:"#333",letterSpacing:3,marginBottom:36}},"共感力"),
+      React.createElement("div",{style:{fontSize:16,color:"#555",lineHeight:2,marginBottom:44,maxWidth:380,fontStyle:"italic"}},"「"+cmt.comment+"」"),
+      React.createElement("div",{style:{marginBottom:44,textAlign:"left",width:"100%",maxWidth:280}},
+        saved.length>0&&React.createElement("div",{style:{fontSize:11,color:"#27ae60",letterSpacing:3,marginBottom:10}},"帰れた人"),
+        saved.map(function(id){return React.createElement("div",{key:id,style:{display:"flex",alignItems:"center",gap:10,marginBottom:8}},
+          React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:gc(id)&&gc(id).color}}),
+          React.createElement("span",{style:{color:"#555",fontSize:14}},gc(id)&&gc(id).name)
+        );}),
+        unsaved.length>0&&React.createElement("div",{style:{fontSize:11,color:"#444",letterSpacing:3,marginBottom:10,marginTop:16}},"帰れなかった人"),
+        unsaved.map(function(id){return React.createElement("div",{key:id,style:{display:"flex",alignItems:"center",gap:10,marginBottom:8}},
+          React.createElement("div",{style:{width:6,height:6,borderRadius:"50%",background:gc(id)&&gc(id).color,opacity:0.3}}),
+          React.createElement("span",{style:{color:"#333",fontSize:14}},gc(id)&&gc(id).name)
+        );})
+      ),
+      React.createElement("button",{onClick:reset,style:{background:"transparent",color:"#555",border:"1px solid #2a2a2a",padding:"14px 48px",fontSize:13,cursor:"pointer",letterSpacing:4,fontFamily:"Georgia,serif"}},"もう一度")
+    );
+  }
+
+  // ── INTRO ──
+  if (phase==="intro") return React.createElement("div",{style:{minHeight:"100vh",background:"#080808",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,serif",padding:"40px 24px",color:"#ddd"}},
+    React.createElement("div",{style:{maxWidth:500,width:"100%",textAlign:"center"}},
+      React.createElement("div",{style:{fontSize:64,fontWeight:900,color:"#fff",letterSpacing:-3,lineHeight:1,marginBottom:8}},"また明日"),
+      React.createElement("div",{style:{fontSize:11,color:"#2a2a2a",letterSpacing:8,marginBottom:44}},"MATA ASHITA"),
+      React.createElement("div",{style:{borderTop:"1px solid #1a1a1a",borderBottom:"1px solid #1a1a1a",padding:"24px 0",marginBottom:40}},
+        React.createElement("p",{style:{fontSize:15,lineHeight:2.6,color:"#555",margin:0}},
+          "死にたいと思っている人たちが、ある場所にいる。",React.createElement("br"),
+          "あなたはそこに入った。",React.createElement("br"),
+          React.createElement("span",{style:{color:"#ccc"}},"武器は言葉だけ。"),React.createElement("br"),
+          "目的は、全員を明日に連れて帰すこと。"
+        )
+      ),
+      React.createElement("div",{style:{marginBottom:40,textAlign:"left"}},
+        CHARS.map(function(c){return React.createElement("div",{key:c.id,style:{display:"flex",alignItems:"center",gap:12,marginBottom:10}},
+          React.createElement("div",{style:{width:7,height:7,borderRadius:"50%",background:c.color,flexShrink:0}}),
+          React.createElement("span",{style:{color:"#aaa",fontSize:15}},c.name),
+          React.createElement("span",{style:{color:"#2a2a2a",fontSize:12}},c.age+"歳")
+        );})
+      ),
+      React.createElement("button",{onClick:function(){
+        se.click();
+        setDisplay(CHARS.map(function(c){return {type:"char",charId:c.id,charName:c.name,text:c.intro};}));
+        setGroupTurn(0); setHistory([]);
+        setPhase("group");
+      },style:{background:"#fff",color:"#000",border:"none",padding:"16px 0",width:"100%",fontSize:14,cursor:"pointer",letterSpacing:6,fontFamily:"Georgia,serif"}},"入る")
+    )
+  );
+
+  // ── AFTER TALK ──
+  async function sendAfterTalk() {
+    if (!input.trim()||loading) return;
+    var text=input.trim(); setInput(""); setLoading(true); se.send();
+    setDisplay(function(prev){return prev.concat([{type:"user",text:text}]);});
+    var remChars=CHARS.filter(function(c){return remaining.indexOf(c.id)!==-1;});
+    var leavedName = gc(leavedChar) ? gc(leavedChar).name : "その人";
+    var replies=[];
+    for(var i=0;i<remChars.length;i++){
+      var char=remChars[i], reply="……";
+      var sys="あなたは「また明日」というゲームのキャラクターです。名前："+char.name+"（"+char.age+"歳）性格："+char.personality+"抱えていること："+char.reason+"状況："+leavedName+"が帰っていった直後。あなたはまだその場に残っている。その出来事について、プレイヤーと話している。2文以内。日本語で。";
+      try {
+        var res=await fetch("https://twilight-mouse-ede4.sotachan.workers.dev",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:150,system:sys,messages:[{role:"user",content:text}]})});
+        var data=await res.json();
+        reply=(data&&data.content&&data.content[0])?data.content[0].text:"……";
+      } catch(e){}
+      replies.push({type:"char",charId:char.id,charName:char.name,text:reply});
+    }
+    setDisplay(function(prev){return prev.concat(replies);});
+    se.receive(); setLoading(false);
+    var next=afterTalkTurn+1;
+    setAfterTalkTurn(next);
+  }
+
+  if (phase==="afterTalk") {
+    var afterLeft=3-afterTalkTurn;
+    var remCharsA=CHARS.filter(function(c){return remaining.indexOf(c.id)!==-1;});
+    return React.createElement("div",{style:{height:"100vh",background:"#080808",display:"flex",flexDirection:"column",fontFamily:"Georgia,serif",color:"#ddd",overflow:"hidden"}},
+      React.createElement("div",{style:{borderBottom:"1px solid #111",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}},
+        React.createElement("span",{style:{fontSize:15,fontWeight:700,color:"#fff"}},"また明日"),
+        React.createElement("span",{style:{fontSize:11,color:afterLeft>0?"#333":"#c0392b"}},afterLeft>0?"あと"+afterLeft+"ターン":"次へ進めます")
+      ),
+      React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:12}},
+        display.map(function(msg,i){return renderMsg(msg,i,"#888");}),
+        loading&&React.createElement("div",{style:{color:"#222",fontSize:13,fontStyle:"italic",animation:"pulse 1s infinite"}},"……"),
+        React.createElement("div",{ref:bottomRef})
+      ),
+      React.createElement("div",{style:{borderTop:"1px solid #111",padding:"14px 20px",display:"flex",gap:10,flexShrink:0,background:"#080808"}},
+        afterLeft>0
+          ? React.createElement(React.Fragment,null,
+              React.createElement("input",{value:input,onChange:function(e){setInput(e.target.value);},onKeyDown:function(e){if(e.key==="Enter")sendAfterTalk();},placeholder:"残った人たちに話しかける…",disabled:loading,style:inp}),
+              React.createElement("button",{onClick:sendAfterTalk,disabled:loading||!input.trim(),style:{background:"#1a1a1a",border:"1px solid #222",color:"#666",padding:"12px 20px",fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",letterSpacing:2,flexShrink:0}},"送る")
+            )
+          : React.createElement("button",{onClick:function(){se.click();setDisplay([]);setPhase("select");},style:{flex:1,background:"#fff",color:"#000",border:"none",padding:"14px",fontSize:13,cursor:"pointer",fontFamily:"Georgia,serif",letterSpacing:4,fontWeight:700}},"誰かと個別に話す →")
+      )
+    );
+  }
+
+  // ── GROUP ──
+  if (phase==="group") return React.createElement("div",{style:{height:"100vh",background:"#080808",display:"flex",flexDirection:"column",fontFamily:"Georgia,serif",color:"#ddd",overflow:"hidden"}},
+    React.createElement("div",{style:{borderBottom:"1px solid #111",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}},
+      React.createElement("span",{style:{fontSize:15,fontWeight:700,color:"#fff"}},"また明日"),
+      React.createElement("span",{style:{fontSize:11,color:groupLeft>0?"#333":"#c0392b"}},groupLeft>0?"あと"+groupLeft+"ターン":"個別に話せます")
+    ),
+    React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:12}},
+      display.map(function(msg,i){return renderMsg(msg,i,"#888");}),
+      loading&&React.createElement("div",{style:{color:"#222",fontSize:13,fontStyle:"italic",animation:"pulse 1s infinite"}},"……"),
+      React.createElement("div",{ref:bottomRef})
+    ),
+    React.createElement("div",{style:{borderTop:"1px solid #111",padding:"14px 20px",display:"flex",gap:10,flexShrink:0,background:"#080808"}},
+      groupLeft>0
+        ? React.createElement(React.Fragment,null,
+            React.createElement("input",{value:input,onChange:function(e){setInput(e.target.value);},onKeyDown:function(e){if(e.key==="Enter")sendGroup();},placeholder:"全員に話しかける…",disabled:loading,style:inp}),
+            React.createElement("button",{onClick:sendGroup,disabled:loading||!input.trim(),style:{background:"#1a1a1a",border:"1px solid #222",color:"#666",padding:"12px 20px",fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",letterSpacing:2,flexShrink:0}},"送る")
+          )
+        : React.createElement("button",{onClick:function(){se.click();setPhase("select");},style:{flex:1,background:"#fff",color:"#000",border:"none",padding:"14px",fontSize:13,cursor:"pointer",fontFamily:"Georgia,serif",letterSpacing:4,fontWeight:700}},"誰かと個別に話す →")
+    )
+  );
+
+  // ── SELECT ──
+  if (phase==="select") {
+    var remChars=CHARS.filter(function(c){return remaining.indexOf(c.id)!==-1;});
+    return React.createElement("div",{style:{minHeight:"100vh",background:"#080808",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"Georgia,serif",padding:"40px 24px",color:"#ddd"}},
+      React.createElement("div",{style:{maxWidth:460,width:"100%"}},
+        React.createElement("div",{style:{fontSize:11,color:"#333",letterSpacing:6,marginBottom:8,textAlign:"center"}},"誰と話すか"),
+        React.createElement("div",{style:{fontSize:12,color:"#2a2a2a",letterSpacing:3,marginBottom:36,textAlign:"center"}},"残り "+remChars.length+"人"),
+        React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10,marginBottom:36}},
+          remChars.map(function(c){return React.createElement("button",{key:c.id,onClick:function(){
+            se.click();
+            setCurrentChar(c.id);
+            setDisplay([{type:"char",charId:c.id,charName:c.name,text:"……"+c.name+"があなたを見た。"}]);
+            setHistory([]);
+            setPhase("chat");
+          },style:{background:"transparent",border:"1px solid "+c.color+"55",color:c.color,padding:"16px 20px",fontSize:15,cursor:"pointer",fontFamily:"Georgia,serif",letterSpacing:2,textAlign:"left",display:"flex",alignItems:"center",gap:12}},
+            React.createElement("div",{style:{width:8,height:8,borderRadius:"50%",background:c.color,flexShrink:0}}),
+            c.name,
+            React.createElement("span",{style:{fontSize:11,color:"#333",marginLeft:"auto"}},c.age+"歳")
+          );})
+        ),
+        React.createElement("button",{onClick:finishNow,style:{background:"transparent",color:"#2a2a2a",border:"1px solid #1a1a1a",padding:"12px 0",width:"100%",fontSize:12,cursor:"pointer",letterSpacing:4,fontFamily:"Georgia,serif"}},"ここで終わる")
+      )
+    );
+  }
+
+  // ── CHAT ──
+  var chatChar=gc(currentChar);
+  return React.createElement("div",{style:{height:"100vh",background:"#080808",display:"flex",flexDirection:"column",fontFamily:"Georgia,serif",color:"#ddd",overflow:"hidden"}},
+    React.createElement("div",{style:{borderBottom:"1px solid #111",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
+        React.createElement("div",{style:{width:8,height:8,borderRadius:"50%",background:chatChar&&chatChar.color}}),
+        React.createElement("span",{style:{fontSize:15,color:chatChar&&chatChar.color}},chatChar&&chatChar.name),
+        React.createElement("span",{style:{fontSize:11,color:"#2a2a2a"}},chatChar&&chatChar.age+"歳")
+      ),
+      React.createElement("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+        React.createElement("span",{style:{fontSize:11,color:"#2a2a2a"}},"残り"+remaining.length+"人"),
+        React.createElement("button",{onClick:function(){se.click();setCurrentChar(null);setDisplay([]);setHistory([]);setPhase("select");},style:{background:"transparent",border:"1px solid #1e1e1e",color:"#333",padding:"4px 10px",fontSize:10,cursor:"pointer",fontFamily:"Georgia,serif",letterSpacing:1}},"別の人へ")
+      )
+    ),
+    React.createElement("div",{style:{flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:12}},
+      display.map(function(msg,i){return renderMsg(msg,i,chatChar&&chatChar.color);}),
+      loading&&React.createElement("div",{style:{color:"#222",fontSize:13,fontStyle:"italic",animation:"pulse 1s infinite"}},"……"),
+      React.createElement("div",{ref:bottomRef})
+    ),
+    React.createElement("div",{style:{borderTop:"1px solid #111",padding:"14px 20px",display:"flex",gap:10,flexShrink:0,background:"#080808"}},
+      React.createElement("input",{value:input,onChange:function(e){setInput(e.target.value);},onKeyDown:function(e){if(e.key==="Enter")sendChat();},placeholder:chatChar?chatChar.name+"に話しかける…":"…",disabled:loading,style:inp}),
+      React.createElement("button",{onClick:sendChat,disabled:loading||!input.trim(),style:{background:"#1a1a1a",border:"1px solid #222",color:"#666",padding:"12px 20px",fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",letterSpacing:2,flexShrink:0}},"送る")
+    )
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
